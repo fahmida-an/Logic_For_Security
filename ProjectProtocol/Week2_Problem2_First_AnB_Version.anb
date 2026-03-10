@@ -1,0 +1,20 @@
+Protocol: OpenAuth_W2_Simple
+
+Types:
+  Agent A,B,P;
+  Number F,T,Photos;
+  Function pk;
+
+Knowledge:
+  A: A,B,P,pk(A),pk(B),pk(P),inv(pk(A));
+  B: A,B,P,pk(A),pk(B),pk(P),inv(pk(B));
+  P: A,B,P,pk(A),pk(B),pk(P),inv(pk(P));
+
+Actions:
+  A -> P: {A,B,P,F,T}inv(pk(A))
+  P -> B: {A,B,P,F,T}inv(pk(A)),F
+  B -> P: {Photos}pk(P)
+
+Goals:
+  Photos secret between B,P;
+  B authenticates A on P,F,T;

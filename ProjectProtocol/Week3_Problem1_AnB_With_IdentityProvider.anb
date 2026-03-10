@@ -1,0 +1,24 @@
+Protocol: OpenAuth_W3_DelegationViaIDP
+
+Types:
+  Agent A,B,P,I;
+  Number F,T,NA,Grant,Photos;
+  Function pk,pw,h;
+
+Knowledge:
+  A: A,B,P,I,pk(A),pk(B),pk(P),pk(I),inv(pk(A)),pw(A,I),h;
+  B: A,B,P,I,pk(A),pk(B),pk(P),pk(I),inv(pk(B));
+  P: A,B,P,I,pk(A),pk(B),pk(P),pk(I),inv(pk(P));
+  I: A,B,P,I,pk(A),pk(B),pk(P),pk(I),inv(pk(I)),pw(A,I),h;
+
+Actions:
+  P -> A: P,B,F,T,NA
+  A -> I: A,P,B,F,T,NA,h(pw(A,I),NA)
+  I -> A: {A,P,B,F,T,NA,Grant}inv(pk(I))
+  A -> P: {A,P,B,F,T,NA,Grant}inv(pk(I))
+  P -> B: {A,P,B,F,T,NA,Grant}inv(pk(I)),F
+  B -> P: {Photos}pk(P)
+
+Goals:
+  Photos secret between B,P;
+  B authenticates I on A,P,F,T,Grant;

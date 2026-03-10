@@ -1,0 +1,23 @@
+Protocol: OpenAuth_W5_PseudonymousChannels
+
+Types:
+  Agent A,B,I,p;
+  Number F,T,R,Grant,Photos;
+  Function pw,h,fDelegReq,fGrant,fUse,fData;
+
+Knowledge:
+  A: A,B,p,I,pw(A,I),h,fDelegReq,fGrant,fUse,fData;
+  B: A,B,p,I,fDelegReq,fGrant,fUse,fData;
+  p: A,B,p,I,fDelegReq,fGrant,fUse,fData;
+  I: A,B,p,I,pw(A,I),h,fDelegReq,fGrant,fUse,fData;
+
+Actions:
+  [p] *->* A: p,B,F,T,R
+  [A] *->* I: A,p,B,F,T,R,h(pw(A,I),R)
+  I *->* [A]: fGrant(A,p,B,F,T,Grant)
+  [A] *->* p: fGrant(A,p,B,F,T,Grant)
+  [p] *->* B: fUse(fGrant(A,p,B,F,T,Grant),F)
+  B *->* [p]: fData(Photos)
+
+Goals:
+  fData(Photos) secret between B,p;

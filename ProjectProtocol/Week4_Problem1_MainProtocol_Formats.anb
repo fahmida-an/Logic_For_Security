@@ -1,0 +1,24 @@
+Protocol: OpenAuth_W4_Formats_Delegation
+
+Types:
+  Agent A,B,I,p;
+  Number R,Grant,Photos;
+  Function pk,pw,h,fReq,fAuthProof,fGrant,fUse,fData;
+
+Knowledge:
+  A: A,B,p,I,pk(A),pk(B),pk(p),pk(I),inv(pk(A)),pw(A,I),h,fReq,fAuthProof,fGrant,fUse,fData;
+  B: A,B,p,I,pk(A),pk(B),pk(p),pk(I),inv(pk(B)),fReq,fAuthProof,fGrant,fUse,fData;
+  p: A,B,p,I,pk(A),pk(B),pk(p),pk(I),inv(pk(p)),fReq,fAuthProof,fGrant,fUse,fData;
+  I: A,B,p,I,pk(A),pk(B),pk(p),pk(I),inv(pk(I)),pw(A,I),h,fReq,fAuthProof,fGrant,fUse,fData;
+
+Actions:
+  p -> A: fReq(p,B)
+  A -> I: fAuthProof(A,p,B,h(pw(A,I),R))
+  I -> A: {fGrant(fAuthProof(A,p,B,h(pw(A,I),R)),Grant)}inv(pk(I))
+  A -> p: {fGrant(fAuthProof(A,p,B,h(pw(A,I),R)),Grant)}inv(pk(I))
+  p -> B: {fGrant(fAuthProof(A,p,B,h(pw(A,I),R)),Grant)}inv(pk(I)),fUse(fReq(p,B))
+  B -> p: {fData(Photos)}pk(p)
+
+Goals:
+  fData(Photos) secret between B,p;
+  B authenticates I on {fGrant(fAuthProof(A,p,B,h(pw(A,I),R)),Grant)}inv(pk(I));

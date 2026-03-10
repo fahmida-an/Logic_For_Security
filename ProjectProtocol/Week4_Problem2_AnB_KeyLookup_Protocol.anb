@@ -1,0 +1,16 @@
+Protocol: OpenAuth_W4_KeyLookup
+
+Types:
+  Agent A,I,X;
+  Function pk,fKeyReq,fKeyResp;
+
+Knowledge:
+  A: A,I,X,pk(A),pk(I),inv(pk(A)),fKeyReq,fKeyResp;
+  I: A,I,X,pk(A),pk(I),pk(X),inv(pk(I)),fKeyReq,fKeyResp;
+
+Actions:
+  A -> I: fKeyReq(A,X)
+  I -> A: {fKeyResp(X,pk(X))}inv(pk(I))
+
+Goals:
+  A authenticates I on fKeyResp(X,pk(X));

@@ -1,0 +1,157 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  urlcolor=blue
+}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible
+}
+
+\title{Lab Logbook: Open Authorization Protocol Project}
+\author{Group: \texttt{<fill group members>}\\Course: 02244 Logic for Security}
+\date{Hand-in Date: \texttt{<fill date>}}
+
+\begin{document}
+\maketitle
+
+\section*{How this logbook is organized}
+This logbook is written as a continuous technical narrative, week by week, in the same order as the course development plan.
+For every week, the text explicitly addresses the four points required in the project handout:
+what was changed and why, which modeling assumptions and goals were used, what problems or attacks were encountered, and what design decisions were taken after analysis.
+The purpose of this format is to provide a report-ready story of protocol evolution rather than a list of isolated notes.
+
+Please replace each \texttt{Author} field below with one group member name to satisfy the individualized authorship requirement.
+
+\section{Week 2: Dolev--Yao Baseline}
+\textbf{Author: \texttt{<name>}}
+
+In Week 2 we deliberately built a minimal baseline protocol in order to establish a working formal model before introducing realistic trust assumptions.
+The protocol captures the core open-authorization intent: owner \texttt{A} delegates photo access at server \texttt{B} to service \texttt{P}.
+At this stage, all public keys are assumed to be globally known and there is no identity-provider interaction yet.
+The selected scope and validity are represented by symbolic fields (\texttt{F,T}), and the initial goals are secrecy of photo data and authorization consistency at the resource server.
+
+The key technical result of Week 2 is that this baseline is insecure under Dolev--Yao reasoning.
+Using the passive-observer analysis required by the assignment, we showed that the protocol structure allows derivation of the protected photo data when the delegate role is intruder-controlled.
+This outcome is not a failure of the process; it is the expected starting point that justifies the subsequent protocol refinements in Weeks 3--6.
+Related artifacts for this week are:
+\texttt{Week2\_Problem1\_Informal\_Protocol\_Outline.md},
+\texttt{Week2\_Problem2\_First\_AnB\_Version.anb},
+and \texttt{Week2\_Problem3\_Static\_DolevYao\_Analysis.md}.
+
+\section{Week 3: Identity Provider + Lazy Intruder Task}
+\textbf{Author: \texttt{<name>}}
+
+Week 3 introduces the assignment's central trust mechanism: delegation via a trusted identity provider \texttt{I}.
+The main protocol (\texttt{Week3\_Problem1\_AnB\_With\_IdentityProvider.anb}) extends the baseline by requiring \texttt{A} to prove knowledge of \texttt{pw(A,I)} through a hash-based challenge response, after which \texttt{I} issues a signed grant token.
+This design explicitly follows the requirement that the password is not used as an encryption key.
+
+From a modeling perspective, this week transitions from ``direct owner signature'' assumptions to ``IDP-issued authorization'' assumptions.
+The symbolic goals remain secrecy and authentication oriented, but the trust source is now explicit and centralized in \texttt{I}.
+OFMC runs show that security issues persist, including secrecy or weak-auth failures depending on role instantiation and refinement choices.
+An additional refinement with fixed honest provider (\texttt{Week3\_Problem3\_Refined\_HonestProvider.anb}) was kept to document this behavior.
+
+The Week 3 special task was completed in full using the lecture method.
+The file \texttt{Week3\_Problem2\_LazyIntruder\_Executability\_of\_P.md} gives a formal, ordered lazy-intruder derivation showing that role \texttt{P} is executable under \texttt{P=i} with honest \texttt{A,B,I}.
+
+\section{Week 4: Formats, Key Lookup, Type-Flaw Resistance}
+\textbf{Author: \texttt{<name>}}
+
+Week 4 focuses on typing discipline and implementation realism.
+The main protocol (\texttt{Week4\_Problem1\_MainProtocol\_Formats.anb}) replaces ambiguous concatenation-heavy structures with explicit format constructors (\texttt{fReq}, \texttt{fAuthProof}, \texttt{fGrant}, \texttt{fUse}, \texttt{fData}).
+In parallel, we introduced a separate key-lookup protocol (\texttt{Week4\_Problem2\_AnB\_KeyLookup\_Protocol.anb}) so that \texttt{A} obtains public-key statements from \texttt{I} instead of assuming universal key knowledge by default.
+
+This week also required practical debugging work.
+A fully wrapped format style initially caused multiple non-executability errors in OFMC because some terms became hard to derive under role knowledge constraints.
+We therefore simplified selected message boundaries while preserving format separation where it matters for type-flaw analysis.
+The resulting models are executable and continue to expose weak-auth issues, which are retained as evidence in the development narrative.
+
+The formal Week 4 special-task argument is documented in
+\texttt{Week4\_Problem3\_TypeFlawResistance\_Check.md}.
+Its core claim is that distinct top-level format constructors prevent cross-type unification except where message kinds are intentionally identical.
+
+\section{Week 5: Pseudonymous Channels (TLS-style abstraction)}
+\textbf{Author: \texttt{<name>}}
+
+In Week 5 we produced a channel-centric protocol variant
+(\texttt{Week5\_Problem1\_PseudonymousChannels.anb}) using pseudonymous channel notation, as required by the lecture's TLS abstraction discussion.
+The design intention was to move from explicit cryptographic transport details toward communication assumptions that better resemble real deployments with server-authenticated TLS semantics.
+Business logic was kept as close as possible to Week 4 so changes could be attributed to channel abstraction rather than message intent.
+
+The model is executable, but OFMC returns \texttt{ATTACK\_FOUND} for secrecy with leaked \texttt{fData(Photos(1))}, documented in
+\texttt{Week5\_Problem1\_PseudonymousChannels\_Result.md}.
+This week therefore demonstrates that replacing low-level crypto syntax with channels improves clarity and modularity, but does not by itself guarantee secure authorization behavior.
+
+\section{Week 6: Guessable Password Security Task}
+\textbf{Author: \texttt{<name>}}
+
+Week 6 addresses the special task on low-entropy password robustness.
+We first modeled \texttt{pw(A,I)} as a guessable secret in
+\texttt{Week6\_Problem1\_GuessablePassword\_Check.anb}; OFMC reported \texttt{ATTACK\_FOUND} with goal \texttt{guesswhat}, confirming an offline-guessing vulnerability.
+We then introduced a hardened proof structure in
+\texttt{Week6\_Problem2\_GuessablePassword\_Hardened.anb} by mixing an additional fresh value \texttt{K} into the password-hash witness.
+This removed \texttt{guesswhat} as the first failing property, but secrecy attacks remained.
+
+To isolate the assignment question itself, we created a dedicated model
+(\texttt{Week6\_Problem3\_GuessablePassword\_OnlyCheck.anb}) with only the guessable-secret goal active.
+With bounded sessions (\texttt{--numSess 1}), OFMC returned \texttt{NO\_ATTACK\_FOUND}.
+Therefore, within the tested bound and for the dedicated guessing property, the Week 6 objective is satisfied.
+All raw outcomes are summarized in \texttt{Week6\_Problem1\_Result\_Summary.md}.
+
+\section{Reproducibility commands (PowerShell)}
+\textbf{Author: \texttt{<name>}}
+
+\begin{lstlisting}
+# Week 2
+ofmc --numSess 2 "ProjectProtocol\Week2_Problem2_First_AnB_Version.anb"
+
+# Week 3
+ofmc --numSess 2 "ProjectProtocol\Week3_Problem1_AnB_With_IdentityProvider.anb"
+ofmc --numSess 2 "ProjectProtocol\Week3_Problem3_Refined_HonestProvider.anb"
+
+# Week 4
+ofmc --numSess 2 "ProjectProtocol\Week4_Problem1_MainProtocol_Formats.anb"
+ofmc --numSess 2 "ProjectProtocol\Week4_Problem2_AnB_KeyLookup_Protocol.anb"
+
+# Week 5
+ofmc --numSess 2 "ProjectProtocol\Week5_Problem1_PseudonymousChannels.anb"
+
+# Week 6
+ofmc --numSess 2 "ProjectProtocol\Week6_Problem1_GuessablePassword_Check.anb"
+ofmc --numSess 2 "ProjectProtocol\Week6_Problem2_GuessablePassword_Hardened.anb"
+ofmc --numSess 1 "ProjectProtocol\Week6_Problem3_GuessablePassword_OnlyCheck.anb"
+\end{lstlisting}
+
+\section{Resources and collaboration disclosure}
+\textbf{Author: \texttt{<name>}}
+
+\subsection*{Tools and materials used}
+\begin{itemize}[leftmargin=1.2em]
+  \item Course slides (Weeks 2--6 topics: Dolev--Yao, lazy intruder, formats, channels, privacy/guessing context).
+  \item OFMC 2024 command-line model checker.
+  \item Assignment handout \texttt{protocol-project (2).pdf}.
+\end{itemize}
+
+\subsection*{AI usage disclosure}
+AI assistant support was used for:
+\begin{itemize}[leftmargin=1.2em]
+  \item editing and restructuring AnB snapshots,
+  \item formatting notes into weekly logbook entries,
+  \item drafting presentation/logbook text.
+\end{itemize}
+All protocol designs, assumptions, and final submitted claims were manually reviewed and validated against OFMC outputs.
+
+\end{document}

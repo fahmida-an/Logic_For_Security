@@ -1,0 +1,25 @@
+Protocol: OpenAuth_W3_Refined_HonestProvider
+
+Types:
+  Agent A,B,I,p;
+  Number F,T,NA,Grant,Photos;
+  Function pk,pw,h;
+
+Knowledge:
+  A: A,B,p,I,pk(A),pk(B),pk(p),pk(I),inv(pk(A)),pw(A,I),h;
+  B: A,B,p,I,pk(A),pk(B),pk(p),pk(I),inv(pk(B));
+  p: A,B,p,I,pk(A),pk(B),pk(p),pk(I),inv(pk(p));
+  I: A,B,p,I,pk(A),pk(B),pk(p),pk(I),inv(pk(I)),pw(A,I),h;
+
+Actions:
+  p -> A: p,B,F,T,NA
+  A -> I: A,p,B,F,T,NA,h(pw(A,I),NA)
+  I -> A: {A,p,B,F,T,NA,Grant}inv(pk(I))
+  A -> p: {A,p,B,F,T,NA,Grant}inv(pk(I))
+  p -> B: {A,p,B,F,T,NA,Grant}inv(pk(I)),F
+  B -> p: {Photos}pk(p)
+
+Goals:
+  Photos secret between B,p;
+  B authenticates I on A,p,F,T,Grant;
+  p authenticates B on Photos;
