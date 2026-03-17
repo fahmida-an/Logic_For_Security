@@ -1,0 +1,169 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{xcolor}
+\geometry{margin=2.5cm}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!10}
+}
+
+\title{Project Lab Logbook: Open Authorization Protocol}
+\author{02244 Logic for Security\\
+Fahmida Khan (s250116), Zeinab Ali, Mirtha Arul}
+\date{March 16, 2026}
+
+\begin{document}
+\maketitle
+
+\section*{Abstract}
+This logbook documents the iterative development of an Open Authorization protocol.
+The protocol evolves from a simplified baseline to identity-provider-based delegation, typed formats, channel abstraction, and guessable-password hardening.
+Each weekly entry records: changes, modeling assumptions/goals, OFMC findings, and design decisions.
+
+\section{Introduction}
+The objective is to allow user $A$ to authorize service $p$ to access selected data on server $B$.
+Authorization is mediated by trusted identity provider $I$.
+The design must protect confidentiality and authentication while handling weak password assumptions for $pw(A,I)$.
+
+\section{Week 2: Dolev--Yao Baseline (Author: Zeinab Ali)}
+\textbf{What changed and idea.}
+We started from a minimal three-party delegation model.
+For this early baseline, authentication was simplified so that $A$ directly authenticates delegation context.
+
+\textbf{Modeling considerations.}
+Public keys were assumed available.
+The model focused on obtaining a runnable baseline for static Dolev--Yao analysis.
+
+\textbf{Problems observed.}
+The baseline is intentionally weak and not yet realistic with respect to the final assignment assumptions.
+
+\textbf{Discussion/decision notes.}
+We accepted this simplification as a Week 2 starting point and planned to move trust to IDP in Week 3.
+
+\section{Week 3: IDP and Lazy Intruder (Author: Fahmida Khan)}
+\textbf{What changed and idea.}
+We introduced the Identity Provider $I$.
+$A$ now shares a weak password $pw(A,I)$ with $I$, and authentication uses hash evidence $h(pw(A,I),N_A)$.
+
+\textbf{Modeling considerations.}
+Password is used as authentication evidence, not as an encryption key.
+This aligns with assignment constraints on weak passwords.
+
+\textbf{Problems observed.}
+OFMC still reports attacks in this stage for broader goals (\texttt{ATTACK\_FOUND}), so more hardening is required.
+
+\textbf{Special task completion (lazy intruder).}
+Role $p$ is executable with $p=i$.
+Trace analysis confirms: (1) $i$ receives $\{A,p,F,T,N_A\}_{inv(pk(I))}$ from $A$; (2) $i$ composes the outgoing message to $B$ by forwarding the signed token.
+This shows the service role can be automated or impersonated once a valid token is released.
+
+\section{Week 4: Type-Flaw Resistance and GetPublicKey (Author: Fahmida Khan)}
+\textbf{What changed and idea.}
+To prevent type-flaw attacks, we introduced explicit function symbols so a Grant term cannot be confused with Photo Data.
+We also implemented a GetPublicKey auxiliary protocol to model retrieval of $pk(B)$ and $pk(p)$ from trusted IdP $I$.
+
+\textbf{Modeling considerations.}
+Week 4 removes the unrealistic assumption that $A$ initially knows every public key.
+Typed constructors enforce structure at symbolic level.
+
+\textbf{Problems observed.}
+Several heavily wrapped variants became non-executable in OFMC before simplification.
+Final key-lookup model executes but still exposes weak-auth issues in analysis.
+
+\textbf{GetPublicKey model.}
+\begin{lstlisting}
+Protocol: OpenAuth_W4_KeyLookup
+
+Types:
+  Agent A,I,X;
+  Function pk,fKeyReq,fKeyResp;
+
+Knowledge:
+  A: A,I,X,pk(A),pk(I),inv(pk(A)),fKeyReq,fKeyResp;
+  I: A,I,X,pk(A),pk(I),pk(X),inv(pk(I)),fKeyReq,fKeyResp;
+
+Actions:
+  A -> I: fKeyReq(A,X)
+  I -> A: {fKeyResp(X,pk(X))}inv(pk(I))
+
+Goals:
+  A authenticates I on fKeyResp(X,pk(X));
+\end{lstlisting}
+
+\section{Week 5: Pseudonymous Channels (Author: Mirtha Arul)}
+\textbf{What changed and idea.}
+We created a TLS-style variant using pseudonymous channels (\texttt{*->*}) to replace as much direct transport cryptography as possible.
+
+\textbf{Modeling considerations.}
+Channel abstraction reduces protocol verbosity and clarifies trust assumptions, while preserving authorization logic.
+
+\textbf{Problems observed.}
+OFMC result is \texttt{ATTACK\_FOUND} on secrecy in this variant.
+Conclusion: channel abstraction alone does not fix authorization logic flaws.
+
+\section{Week 6: Guessable Password Security (Author: Mirtha Arul)}
+\textbf{What changed and idea.}
+We tested low-entropy password robustness in three steps:
+baseline guessable model, hardened proof model, and focused guessable-only check.
+
+\textbf{Modeling considerations.}
+The password remains outside direct encryption usage; only hash-based witness uses $pw(A,I)$.
+The final hardened flow uses pseudonymous channels between $A$ and $I$ with an explicit challenge nonce $NI$ before token issuance.
+
+\textbf{Problems observed and outcomes.}
+\begin{itemize}[leftmargin=1.2em]
+  \item Baseline: \texttt{ATTACK\_FOUND}, goal \texttt{guesswhat}.
+  \item Hardened model: still \texttt{ATTACK\_FOUND}, but on secrecy rather than guessability.
+  \item Focused guessable-only model (\texttt{--numSess 1}): \texttt{NO\_ATTACK\_FOUND}.
+\end{itemize}
+
+\textbf{Cautious conclusion.}
+Within bounded verification and for the dedicated guessable-password goal, no guessing attack was found.
+
+\section{Final Hardened Protocol Snapshot}
+\begin{lstlisting}
+Protocol: OpenAuth_W6_GuessablePassword_Hardened
+
+Types:
+  Agent A,B,I,p;
+  Number F,T,R,NI,Grant,Photos;
+  Function pk,pw,h,fGrant,fData;
+
+Knowledge:
+  A: A,B,I,p,pk(I),pw(A,I),h,fGrant,fData;
+  B: A,B,I,p,pk(B),pk(I),pk(p),inv(pk(B)),fGrant,fData;
+  p: A,B,I,p,pk(p),pk(I),inv(pk(p)),fGrant,fData;
+  I: A,B,I,p,pk(B),pk(p),pk(I),inv(pk(I)),pw(A,I),h,fGrant,fData;
+
+Actions:
+  p -> A: p,B,F,T,R
+  A *->* I: A,p,B,F,T,R
+  I *->* A: NI
+  A *->* I: A,p,B,F,T,R,NI,h(pw(A,I),A,p,B,F,T,R,NI)
+  I -> p: {fGrant(A,p,B,F,T,Grant)}inv(pk(I))
+  p -> B: {fGrant(A,p,B,F,T,Grant)}inv(pk(I)),F
+  B -> p: {fData(Photos)}pk(p)
+
+Goals:
+  pw(A,I) guessable secret between A,I;
+  fData(Photos) secret between B,p;
+  p authenticates I on fGrant(A,p,B,F,T,Grant);
+  B authenticates I on fGrant(A,p,B,F,T,Grant);
+  I authenticates A on NI;
+\end{lstlisting}
+
+\section{Resources and Collaboration Disclosure}
+\begin{itemize}[leftmargin=1.2em]
+  \item 02244 Logic for Security lectures and assignment text.
+  \item OFMC/AnB tooling and documentation.
+  \item AI assistance for writing structure and formatting; final claims validated against OFMC outputs.
+\end{itemize}
+
+\end{document}

@@ -1,0 +1,206 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{xcolor}
+\geometry{margin=2.5cm}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!10}
+}
+
+\title{Lab Logbook Attachment\\Open Authorization Protocol Development}
+\author{02244 Logic for Security\\Group: \texttt{<fill group members>}}
+\date{March 2026}
+
+\begin{document}
+\maketitle
+
+\section*{Purpose of this logbook}
+This attachment documents the protocol \emph{development process} as required by the assignment:
+from a bare-bones version to refined weekly variants, including versions with attacks and versions
+with modeling problems. Each entry includes:
+\begin{itemize}[leftmargin=1.2em]
+  \item what changed from the previous version and the core idea,
+  \item modeling considerations (assumptions and goals),
+  \item problems observed (attacks, non-executability, etc.),
+  \item brief discussion/decision notes.
+\end{itemize}
+
+\section{Week 2}
+\textbf{Author: \texttt{<name>}}
+
+\subsection*{Snapshot W2-S1: Informal design}
+\textbf{File:} \texttt{Week2\_Problem1\_Informal\_Protocol\_Outline.md}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{What changed / idea:} Defined the first bare-bones delegation idea: $A$ authorizes $P$ to read photos from $B$.
+  \item \textbf{Modeling considerations:} No IDP yet; public keys assumed known; scoped access represented symbolically.
+  \item \textbf{Problems:} Security not yet evaluated; protocol intentionally simplified.
+  \item \textbf{Discussion notes:} Decided to start minimal to get executable AnB quickly, then harden in later weeks.
+\end{itemize}
+
+\subsection*{Snapshot W2-S2: First executable AnB model}
+\textbf{File:} \texttt{Week2\_Problem2\_First\_AnB\_Version.anb}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{What changed / idea:} Converted informal design into AnB with 3-step message flow.
+  \item \textbf{Modeling considerations:} Roles $\{A,B,P\}$, fields $(F,T)$ for scope/validity, secrecy/auth goals.
+  \item \textbf{Problems:} Model is intentionally weak and allows role abuse in analysis context.
+  \item \textbf{Discussion notes:} Kept this version as baseline evidence for iterative development.
+\end{itemize}
+
+\subsection*{Snapshot W2-S3: Static Dolev--Yao analysis}
+\textbf{File:} \texttt{Week2\_Problem3\_Static\_DolevYao\_Analysis.md}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{What changed / idea:} Added required passive intruder analysis.
+  \item \textbf{Modeling considerations:} Intruder observes but does not inject; derivation via Dolev--Yao rules.
+  \item \textbf{Problems:} Photo data can be derived under intruder-controlled delegate role assumptions.
+  \item \textbf{Discussion notes:} This motivates adding trusted IDP in Week 3.
+\end{itemize}
+
+\section{Week 3}
+\textbf{Author: \texttt{<name>}}
+
+\subsection*{Snapshot W3-S1: IDP-based delegation model}
+\textbf{File:} \texttt{Week3\_Problem1\_AnB\_With\_IdentityProvider.anb}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{What changed / idea:} Introduced IDP-issued grant token and password proof to IDP.
+  \item \textbf{Modeling considerations:} Password used only in hash proof $h(pw(A,I),N)$, not as encryption key.
+  \item \textbf{Problems:} OFMC run shows \texttt{ATTACK\_FOUND} (secrecy).
+  \item \textbf{Discussion notes:} Kept as required Week 3 snapshot despite attack.
+\end{itemize}
+
+\subsection*{Snapshot W3-S2: Special-task lazy intruder proof}
+\textbf{File:} \texttt{Week3\_Problem2\_LazyIntruder\_Executability\_of\_P.md}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{What changed / idea:} Added formal step-by-step executability proof for role $P$ with $P=i$.
+  \item \textbf{Modeling considerations:} Axiom/Compose/lazy-variable reasoning exactly as in lecture method.
+  \item \textbf{Problems:} None in proof structure; this task is independent of global protocol security.
+  \item \textbf{Discussion notes:} Confirms role executability requirement is satisfied.
+\end{itemize}
+
+\subsection*{Snapshot W3-S3: Refined honest-provider variant}
+\textbf{File:} \texttt{Week3\_Problem3\_Refined\_HonestProvider.anb}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{What changed / idea:} Fixed provider role to constant \texttt{p} for cleaner analysis.
+  \item \textbf{Modeling considerations:} Reduced role-instantiation ambiguity in goals.
+  \item \textbf{Problems:} OFMC still reports \texttt{ATTACK\_FOUND} (weak authentication).
+  \item \textbf{Discussion notes:} Demonstrated that simple role fixing alone is insufficient.
+\end{itemize}
+
+\section{Week 4}
+\textbf{Author: \texttt{<name>}}
+
+\subsection*{Snapshot W4-S1: Main protocol with formats}
+\textbf{File:} \texttt{Week4\_Problem1\_MainProtocol\_Formats.anb}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{What changed / idea:} Introduced format constructors (\texttt{fReq}, \texttt{fGrant}, etc.) to reduce type confusion.
+  \item \textbf{Modeling considerations:} Explicit message kinds; goals adapted to terms OFMC can track.
+  \item \textbf{Problems:} Multiple intermediate non-executable variants occurred before final executable structure.
+  \item \textbf{Discussion notes:} Retained format discipline while simplifying over-wrapped terms.
+\end{itemize}
+
+\subsection*{Snapshot W4-S2: Separate key-lookup protocol}
+\textbf{File:} \texttt{Week4\_Problem2\_AnB\_KeyLookup\_Protocol.anb}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{What changed / idea:} Added standalone protocol for $A$ to obtain $pk(X)$ from IDP.
+  \item \textbf{Modeling considerations:} Addresses requirement that $A$ need not initially know all public keys.
+  \item \textbf{Problems:} Initial goal shape (\texttt{X,pk(X)}) required adjustment to formatted term for OFMC tracking.
+  \item \textbf{Discussion notes:} Final variant executes and exposes weak-auth attack trace.
+\end{itemize}
+
+\subsection*{Snapshot W4-S3: Type-flaw resistance note}
+\textbf{File:} \texttt{Week4\_Problem3\_TypeFlawResistance\_Check.md}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{What changed / idea:} Added explicit special-task argument.
+  \item \textbf{Modeling considerations:} Unification should only succeed across same message kind/type.
+  \item \textbf{Problems:} Argument is symbolic and depends on chosen format discipline.
+  \item \textbf{Discussion notes:} Included as text proof component as required.
+\end{itemize}
+
+\section{Week 5}
+\textbf{Author: \texttt{<name>}}
+
+\subsection*{Snapshot W5-S1: TLS-like pseudonymous channel variant}
+\textbf{File:} \texttt{Week5\_Problem1\_PseudonymousChannels.anb}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{What changed / idea:} Replaced direct transport crypto with pseudonymous channels (\texttt{*->*}, brackets).
+  \item \textbf{Modeling considerations:} Preserve core authorization logic while abstracting channel semantics.
+  \item \textbf{Problems:} OFMC result \texttt{ATTACK\_FOUND} on secrecy.
+  \item \textbf{Discussion notes:} Channel abstraction improved clarity, but did not remove logic-level weaknesses.
+\end{itemize}
+
+\subsection*{Snapshot W5-S2: Result documentation}
+\textbf{File:} \texttt{Week5\_Problem1\_PseudonymousChannels\_Result.md}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{What changed / idea:} Logged exact command and output for reproducibility.
+  \item \textbf{Modeling considerations:} Bounded sessions used for practical verification time.
+  \item \textbf{Problems:} Secret \texttt{fData(Photos)} leakage observed.
+  \item \textbf{Discussion notes:} Kept as explicit evidence in development chain.
+\end{itemize}
+
+\section{Week 6}
+\textbf{Author: \texttt{<name>}}
+
+\subsection*{Snapshot W6-S1: Baseline guessable-password test}
+\textbf{File:} \texttt{Week6\_Problem1\_GuessablePassword\_Check.anb}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{What changed / idea:} Declared password as guessable secret and tested baseline.
+  \item \textbf{Modeling considerations:} Goal targets offline-guessing behavior (\texttt{guesswhat}).
+  \item \textbf{Problems:} OFMC reports \texttt{ATTACK\_FOUND} on guessable goal.
+  \item \textbf{Discussion notes:} Confirms vulnerability in naive form.
+\end{itemize}
+
+\subsection*{Snapshot W6-S2: Hardened password proof}
+\textbf{File:} \texttt{Week6\_Problem2\_GuessablePassword\_Hardened.anb}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{What changed / idea:} Added fresh value \texttt{K} into password proof hash.
+  \item \textbf{Modeling considerations:} Aim is to reduce direct guessing signal.
+  \item \textbf{Problems:} OFMC still finds attack, but first failing goal shifts to secrecy, not \texttt{guesswhat}.
+  \item \textbf{Discussion notes:} Improvement observed, but model not globally secure.
+\end{itemize}
+
+\subsection*{Snapshot W6-S3: Focused special-task check}
+\textbf{File:} \texttt{Week6\_Problem3\_GuessablePassword\_OnlyCheck.anb}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{What changed / idea:} Isolated the Week 6 special-task goal only.
+  \item \textbf{Modeling considerations:} Ran bounded check with \texttt{--numSess 1}.
+  \item \textbf{Problems:} Full unbounded exploration may be expensive; bounded conclusion explicitly stated.
+  \item \textbf{Discussion notes:} OFMC returns \texttt{NO\_ATTACK\_FOUND}; used as primary Week 6 conclusion.
+\end{itemize}
+
+\subsection*{Snapshot W6-S4: Week 6 result summary note}
+\textbf{File:} \texttt{Week6\_Problem1\_Result\_Summary.md}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{What changed / idea:} Consolidated all Week 6 command outputs and interpretations.
+  \item \textbf{Modeling considerations:} Distinguishes guessing attacks from other security failures.
+  \item \textbf{Problems:} Need to report bounded-session caveat clearly.
+  \item \textbf{Discussion notes:} This summary is the source text for the Week 6 report paragraph.
+\end{itemize}
+
+\section*{Reproducibility commands}
+\begin{lstlisting}
+ofmc --numSess 2 "ProjectProtocol\Week2_Problem2_First_AnB_Version.anb"
+ofmc --numSess 2 "ProjectProtocol\Week3_Problem1_AnB_With_IdentityProvider.anb"
+ofmc --numSess 2 "ProjectProtocol\Week3_Problem3_Refined_HonestProvider.anb"
+ofmc --numSess 2 "ProjectProtocol\Week4_Problem1_MainProtocol_Formats.anb"
+ofmc --numSess 2 "ProjectProtocol\Week4_Problem2_AnB_KeyLookup_Protocol.anb"
+ofmc --numSess 2 "ProjectProtocol\Week5_Problem1_PseudonymousChannels.anb"
+ofmc --numSess 2 "ProjectProtocol\Week6_Problem1_GuessablePassword_Check.anb"
+ofmc --numSess 2 "ProjectProtocol\Week6_Problem2_GuessablePassword_Hardened.anb"
+ofmc --numSess 1 "ProjectProtocol\Week6_Problem3_GuessablePassword_OnlyCheck.anb"
+\end{lstlisting}
+
+\section*{Resources and collaboration disclosure}
+\begin{itemize}[leftmargin=1.2em]
+  \item Course slides and assignment handout.
+  \item OFMC 2024 model checker.
+  \item AI assistance used for editing, structuring, and drafting text; all claims validated against OFMC outputs.
+\end{itemize}
+
+\end{document}

@@ -1,0 +1,96 @@
+\section{Development and Special Tasks (Week 2--5) - Fahmida}
+
+\subsection{Outline of the design}
+
+The protocol family is developed incrementally from a minimal delegation model toward a structured IDP-based authorization design.
+The central objective is to allow user $A$ to delegate controlled read access at server $B$ to service $P$, without sharing long-term credentials.
+Weeks 2--4 focus on formalizing the threat model, checking executability under the lazy intruder, and improving robustness through typed message formats and explicit key-distribution assumptions.
+
+\subsection{Description of protocol development and OFMC findings}
+
+\subsubsection{Week 2: Dolev--Yao and static analysis}
+
+In Week 2 we used a simplified baseline protocol to perform the required static Dolev--Yao analysis under a passive intruder (observe-only, no message injection).
+In this setting, the intruder learns public and visible fields (agent identities and request context).
+The intruder does not derive private keys, and cannot decrypt ciphertext encrypted for an uncompromised honest recipient.
+This baseline analysis gave us a clear starting point: some structures are too weak and must be refined in later weeks to avoid confidentiality/authentication issues in active settings.
+
+\subsubsection{Week 3: Lazy intruder}
+
+Week 3 introduces identity-provider-issued authorization and the special-task executability check.
+We verified that role $P$ is executable when $P$ is instantiated by the intruder:
+the intruder can construct each required outgoing message from previously available knowledge.
+Operationally, the intruder can receive a token from $A$, forward it to $B$, and continue protocol interaction.
+This is expected for a delegated service role.
+The intended security condition is not ``intruder cannot send,'' but rather ``only correctly issued IDP-bound authorization should be accepted by $B$.'' 
+OFMC confirms that this version is executable and also reports attacks on broader goals (\texttt{ATTACK\_FOUND}),
+which is consistent with an intermediate development stage where functionality and threat-model realism are added before full hardening.
+
+\subsubsection{Week 4: Type-flaw resistance and GetPublicKey}
+
+In Week 4 we introduced explicit format constructors (e.g., request/token/data wrappers) to reduce message-type confusion.
+The core typing claim is: for any two non-variable message patterns, if they unify, they belong to the same intended kind/type.
+We also added a separate GetPublicKey protocol so that $A$, initially trusting only $pk(IDP)$, can obtain $pk(X)$ from the identity provider.
+This removes the unrealistic assumption that $A$ initially knows every party public key.
+In verification terms, this week improved model discipline but did not eliminate all attacks:
+the key-lookup model remains executable and still produces a weak-auth finding in OFMC, which is documented as a design limitation rather than hidden.
+
+\subsubsection{Week 5: Channels and pseudonymous TLS abstraction}
+
+In Week 5 we replaced as much direct transport cryptography as possible with pseudonymous channels, following the lecture model for TLS-style communication.
+The goal of this step was compositional clarity: keep the authorization logic explicit while abstracting channel guarantees.
+Concretely, owner--IDP and service--server communications were modeled with channel notation instead of only low-level encryption syntax.
+
+OFMC result for this variant is \texttt{ATTACK\_FOUND} on secrecy, with leaked term of the form \texttt{fData(Photos(...))}.
+This outcome is technically important: channel abstraction can reduce protocol complexity, but it does not automatically fix authorization logic flaws.
+Therefore, Week 5 is recorded as a valid and useful intermediate snapshot in the development chain.
+
+\subsection{AnB formalization}
+
+\subsubsection{Design decisions and development}
+
+The early versions used stronger initial assumptions to get an executable baseline quickly.
+During development, these assumptions were reduced:
+\begin{itemize}
+  \item direct trust assumptions were replaced by IDP-issued authorization,
+  \item typed formats were added to improve message discipline,
+  \item key lookup was split into a dedicated protocol before main delegation flow when needed.
+\end{itemize}
+
+This staged approach made attack traces and modeling limitations visible at each step and allowed targeted refinement.
+In particular, Weeks 3--5 show a clear methodological progression: executable model $\rightarrow$ stronger structure/typing $\rightarrow$ channel abstraction, with each step validated by OFMC and discussed from a security-engineering perspective.
+
+\subsubsection{Modeling in AnB}
+
+\begin{lstlisting}
+Protocol: OpenAuth_W4_KeyLookup
+
+Types:
+  Agent A,I,X;
+  Function pk,fKeyReq,fKeyResp;
+
+Knowledge:
+  A: A,I,X,pk(A),pk(I),inv(pk(A)),fKeyReq,fKeyResp;
+  I: A,I,X,pk(A),pk(I),pk(X),inv(pk(I)),fKeyReq,fKeyResp;
+
+Actions:
+  A -> I: fKeyReq(A,X)
+  I -> A: {fKeyResp(X,pk(X))}inv(pk(I))
+
+Goals:
+  A authenticates I on fKeyResp(X,pk(X));
+\end{lstlisting}
+
+For Week 5, the corresponding channel-based model is:
+\begin{lstlisting}
+Protocol: OpenAuth_W5_PseudonymousChannels
+...
+Actions:
+  [p] *->* A: p,B,F,T,R
+  [A] *->* I: A,p,B,F,T,R,h(pw(A,I),R)
+  I *->* [A]: fGrant(A,p,B,F,T,Grant)
+  [A] *->* p: fGrant(A,p,B,F,T,Grant)
+  [p] *->* B: fUse(fGrant(A,p,B,F,T,Grant),F)
+  B *->* [p]: fData(Photos)
+\end{lstlisting}
+

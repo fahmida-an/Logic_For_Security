@@ -1,0 +1,236 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!10},
+  numbers=left,
+  numberstyle=\tiny
+}
+
+\title{02244 - Logic for Security\\
+\vspace{0.5em}
+Project on Security Protocols}
+
+\author{%
+  \textbf{Authors}\\[0.5em]
+  Zeinab\\
+  Fahmida\\
+  Mirtha\\[1em]
+  March 2026
+}
+
+\date{}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{Introduction - Zeinab}
+
+\noindent
+This project develops an Open Authorization protocol for the following setting.
+User $A$ stores photos at server $B$ and wants to use a photo-book service $P$.
+Instead of downloading from $B$ and uploading to $P$, $A$ should authorize $P$ to access selected photos directly at $B$ with limited rights.
+
+The trust architecture includes an identity provider (\textit{IDP}, denoted $I$).
+User $A$ authenticates through a password-based relation with $I$, and authorization tokens are issued and signed by $I$.
+The development follows the weekly assignment structure:
+Dolev--Yao baseline analysis, lazy intruder executability, typed formats and key lookup, pseudonymous channels, and guessable-password verification.
+
+This report presents design choices, formal AnB models, and OFMC verification outcomes.
+Intermediate vulnerable versions are intentionally included because they justify each refinement step.
+
+\newpage
+\section{Open Authorization Main Protocol - Zeinab}
+
+\subsection{Outline of the design}
+
+\subsubsection{Agents and initial knowledge}
+The main agents are:
+\begin{itemize}
+  \item \textbf{$A$ (Owner):} delegates access.
+  \item \textbf{$B$ (Photo Server):} serves protected photos.
+  \item \textbf{$P$ (Photo Service):} requests delegated read access.
+  \item \textbf{$I$ (IDP):} trusted authorization issuer.
+\end{itemize}
+
+The IDP is assumed honest.
+Password material is used only for authentication evidence and not as an encryption key.
+Authorization context includes identities and scope metadata.
+
+\subsubsection{Security properties to establish}
+\begin{itemize}
+  \item secrecy of photo payload between $B$ and $P$,
+  \item authentication of server decisions based on IDP-issued grants,
+  \item robustness against guessable-password attacks (Week 6 task).
+\end{itemize}
+
+\subsection{AnB formalization}
+
+\subsubsection{Design decisions and development}
+Week 2 starts with a minimal baseline.
+After static Dolev--Yao analysis exposed leakage risk, Week 3 introduces IDP-issued grants.
+The revised flow is:
+\begin{enumerate}
+  \item $P \rightarrow A$: request with scope and freshness.
+  \item $A \rightarrow I$: request plus password witness $h(pw(A,I),N)$.
+  \item $I \rightarrow A$: signed grant.
+  \item $A \rightarrow P$: token forwarding.
+  \item $P \rightarrow B$: token presentation.
+  \item $B \rightarrow P$: encrypted data return.
+\end{enumerate}
+
+\subsubsection{Modeling in AnB}
+\begin{lstlisting}
+Protocol: OpenAuth_W3_DelegationViaIDP
+
+Types:
+  Agent A,B,P,I;
+  Number F,T,NA,Grant,Photos;
+  Function pk,pw,h;
+
+Actions:
+  P -> A: P,B,F,T,NA
+  A -> I: A,P,B,F,T,NA,h(pw(A,I),NA)
+  I -> A: {A,P,B,F,T,NA,Grant}inv(pk(I))
+  A -> P: {A,P,B,F,T,NA,Grant}inv(pk(I))
+  P -> B: {A,P,B,F,T,NA,Grant}inv(pk(I)),F
+  B -> P: {Photos}pk(P)
+\end{lstlisting}
+
+\newpage
+\section{Formats and GetPublicKey Protocol - Fahmida}
+
+\subsection{Outline of the design}
+
+\subsubsection{Agents and initial knowledge}
+Week 4 keeps the same trust model but improves message typing.
+Distinct format constructors are used to separate protocol intents.
+Additionally, $A$ obtains unknown public keys from $I$ via a dedicated key lookup protocol.
+
+\subsubsection{Security properties to establish}
+\begin{itemize}
+  \item reduce type-flaw risk through constructor separation,
+  \item authenticate key responses from $I$ to $A$.
+\end{itemize}
+
+\subsection{AnB formalization}
+
+\subsubsection{Design decisions and development}
+Heavily wrapped format variants initially produced non-executability in OFMC.
+The model was simplified while preserving typed message structure.
+A separate textual argument documents type-flaw resistance in the Week 4 note.
+
+\subsubsection{Modeling in AnB}
+\begin{lstlisting}
+Protocol: OpenAuth_W4_KeyLookup
+
+Types:
+  Agent A,I,X;
+  Function pk,fKeyReq,fKeyResp;
+
+Actions:
+  A -> I: fKeyReq(A,X)
+  I -> A: {fKeyResp(X,pk(X))}inv(pk(I))
+
+Goals:
+  A authenticates I on fKeyResp(X,pk(X));
+\end{lstlisting}
+
+\newpage
+\section{TLS Channels, Guessable Password, and Final Status - Mirtha}
+
+\subsection{Outline of the design}
+
+\subsubsection{Week 5: pseudonymous channels}
+The Week 5 variant models TLS-like communication through pseudonymous channels.
+This abstracts transport-level cryptography while keeping authorization logic explicit.
+
+\subsubsection{Week 6: guessable password checks}
+Week 6 evaluates password guessing resistance in three steps:
+\begin{itemize}
+  \item baseline guessable model (\texttt{guesswhat} attack found),
+  \item hardened password-proof model,
+  \item focused guessable-only check (bounded no-attack result).
+\end{itemize}
+
+\subsection{AnB formalization}
+
+\subsubsection{Design decisions and development}
+Week 5 shows channel abstraction alone does not remove logic-level vulnerabilities.
+Week 6 introduces dedicated guessing analysis and isolates the required special-task goal in a focused model.
+
+\subsubsection{Modeling in AnB}
+\begin{lstlisting}
+Protocol: OpenAuth_W6_GuessablePassword_OnlyCheck
+
+Types:
+  Agent A,B,I,p;
+  Number F,T,R,K,Grant,Photos;
+  Function pk,pw,h,fGrant,fData;
+
+Actions:
+  p -> A: p,B,F,T,R
+  A -> I: {A,p,B,F,T,R,K,h(pw(A,I),R,K)}pk(I)
+  I -> A: {fGrant(A,p,B,F,T,Grant)}inv(pk(I))
+  A -> p: {fGrant(A,p,B,F,T,Grant)}inv(pk(I))
+  p -> B: {fGrant(A,p,B,F,T,Grant)}inv(pk(I)),F
+  B -> p: {fData(Photos)}pk(p)
+
+Goals:
+  pw(A,I) guessable secret between A,I;
+\end{lstlisting}
+
+\newpage
+\section{Development and Special Tasks Summary}
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Week} & \textbf{Special Task Outcome} \\
+\midrule
+2 & Static Dolev--Yao analysis completed (baseline weakness identified). \\
+3 & Lazy intruder executability of role $P$ completed (lecture-style derivation). \\
+4 & Type-flaw resistant format strategy + separate key lookup protocol. \\
+5 & Pseudonymous channel variant implemented and analyzed. \\
+6 & Guessable-password progression completed; focused bounded check has no guess attack. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section*{AnB files delivered}
+\begin{itemize}
+  \item \texttt{Week2\_Problem2\_First\_AnB\_Version.anb}
+  \item \texttt{Week3\_Problem1\_AnB\_With\_IdentityProvider.anb}
+  \item \texttt{Week3\_Problem3\_Refined\_HonestProvider.anb}
+  \item \texttt{Week4\_Problem1\_MainProtocol\_Formats.anb}
+  \item \texttt{Week4\_Problem2\_AnB\_KeyLookup\_Protocol.anb}
+  \item \texttt{Week5\_Problem1\_PseudonymousChannels.anb}
+  \item \texttt{Week6\_Problem1\_GuessablePassword\_Check.anb}
+  \item \texttt{Week6\_Problem2\_GuessablePassword\_Hardened.anb}
+  \item \texttt{Week6\_Problem3\_GuessablePassword\_OnlyCheck.anb}
+\end{itemize}
+
+\section*{References}
+\begin{itemize}
+  \item Sebastian M\"odersheim, Protocol Security Verification Tutorial, DTU Compute.
+  \item OFMC and AnB documentation.
+  \item 02244 course slides and assignment handout.
+\end{itemize}
+
+\end{document}

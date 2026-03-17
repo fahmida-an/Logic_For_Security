@@ -1,0 +1,216 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{xcolor}
+\geometry{margin=2.5cm}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!8},
+  numbers=left,
+  numberstyle=\tiny
+}
+
+\title{02244 Logic for Security\\Project on Security Protocols\\
+\vspace{0.5em}\large Open Authorization Protocol}
+\author{
+\textbf{Authors}\\
+Zeinab\\
+Fahmida\\
+Mirtha\\[0.5em]
+March 2026
+}
+\date{}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{Introduction}
+
+This project designs and analyzes an Open Authorization protocol for the following scenario:
+user $A$ stores photos at server $B$ and wants photo-book service $P$ to print selected photos.
+Instead of downloading and re-uploading data, $A$ should authorize $P$ to access only the intended subset at $B$.
+
+The trust model includes an identity provider $I$ (IDP), similar to MitID-like systems.
+User $A$ authenticates through a shared password relation with $I$, while authorization tokens are issued by $I$ and presented to $B$ through $P$.
+The development follows the weekly progression in the course: Dolev--Yao analysis, lazy intruder reasoning,
+typing/format discipline, channel abstraction, and guessable-password verification.
+
+This report documents not only the final protocol idea but also intermediate failed or vulnerable versions,
+as required by the assignment. Those intermediate steps are essential because they explain
+why each refinement was introduced.
+
+\section{Method and Tooling}
+
+We model protocol versions in AnB and verify them with OFMC 2024.
+Each week contributes one or more development artifacts under \texttt{ProjectProtocol/}.
+For each version, we record:
+\begin{itemize}[leftmargin=1.2em]
+  \item protocol intent and assumptions,
+  \item formal goals,
+  \item OFMC output (\texttt{ATTACK\_FOUND} or \texttt{NO\_ATTACK\_FOUND}),
+  \item interpretation and next refinement decision.
+\end{itemize}
+
+The analysis is symbolic under Dolev--Yao assumptions.
+Where bounded-session settings are used, this is explicitly stated.
+
+\section{Protocol Development by Week}
+
+\subsection{Week 2: Bare-Bones Baseline and Static Dolev--Yao}
+
+\textbf{Files used:}
+\begin{itemize}[leftmargin=1.2em]
+  \item \texttt{Week2\_Problem1\_Informal\_Protocol\_Outline.md}
+  \item \texttt{Week2\_Problem2\_First\_AnB\_Version.anb}
+  \item \texttt{Week2\_Problem3\_Static\_DolevYao\_Analysis.md}
+\end{itemize}
+
+The Week 2 protocol is intentionally minimal:
+$A$ signs a delegation context and forwards authorization for $P$ to access $B$.
+This version is used to establish a runnable baseline and perform the required static passive-intruder analysis.
+
+\textbf{Main finding:}
+the static Dolev--Yao derivation shows that confidentiality can fail in the baseline model under intruder-controlled delegation behavior.
+This motivates introducing explicit IDP issuance in Week 3.
+
+\subsection{Week 3: IDP-Based Delegation and Lazy Intruder Task}
+
+\textbf{Files used:}
+\begin{itemize}[leftmargin=1.2em]
+  \item \texttt{Week3\_Problem1\_AnB\_With\_IdentityProvider.anb}
+  \item \texttt{Week3\_Problem2\_LazyIntruder\_Executability\_of\_P.md}
+  \item \texttt{Week3\_Problem3\_Refined\_HonestProvider.anb}
+\end{itemize}
+
+Week 3 introduces role $I$ as the token issuer.
+User $A$ authenticates to $I$ with a password-derived hash witness,
+and $I$ signs a grant that is forwarded via $P$ to $B$.
+This satisfies the requirement that password is not used as an encryption key.
+
+\textbf{Main findings:}
+\begin{itemize}[leftmargin=1.2em]
+  \item The special task is completed: role $P$ executability is shown step-by-step with lazy intruder method.
+  \item OFMC still reports attacks in this stage (\texttt{ATTACK\_FOUND}), showing refinement is still needed.
+\end{itemize}
+
+\subsection{Week 4: Formats, Type-Flaw Resistance, and Key Lookup}
+
+\textbf{Files used:}
+\begin{itemize}[leftmargin=1.2em]
+  \item \texttt{Week4\_Problem1\_MainProtocol\_Formats.anb}
+  \item \texttt{Week4\_Problem2\_AnB\_KeyLookup\_Protocol.anb}
+  \item \texttt{Week4\_Problem3\_TypeFlawResistance\_Check.md}
+\end{itemize}
+
+Week 4 focuses on message structure and implementation realism.
+We introduced explicit format constructors
+(\texttt{fReq}, \texttt{fAuthProof}, \texttt{fGrant}, \texttt{fUse}, \texttt{fData})
+to reduce ambiguous unification patterns.
+We also separated public-key retrieval into a dedicated protocol where $A$ asks $I$ for $pk(X)$.
+
+\textbf{Main findings:}
+\begin{itemize}[leftmargin=1.2em]
+  \item Several intermediate formatted variants were non-executable in OFMC and had to be simplified.
+  \item Final Week 4 models are executable and suitable for type-flaw discussion.
+  \item Weak-auth attacks remain in this stage.
+\end{itemize}
+
+\subsection{Week 5: Pseudonymous Channels (TLS-Style Abstraction)}
+
+\textbf{Files used:}
+\begin{itemize}[leftmargin=1.2em]
+  \item \texttt{Week5\_Problem1\_PseudonymousChannels.anb}
+  \item \texttt{Week5\_Problem1\_PseudonymousChannels\_Result.md}
+\end{itemize}
+
+This week replaces explicit transport cryptography with pseudonymous channel notation,
+as required by the channel-abstraction task.
+The goal is to keep authorization logic while delegating transport assumptions to channel semantics.
+
+\textbf{Main finding:}
+the model runs, but OFMC reports \texttt{ATTACK\_FOUND} on secrecy (\texttt{fData(Photos)} leak).
+Hence channel abstraction alone does not guarantee protocol security.
+
+\subsection{Week 6: Guessable Password Verification}
+
+\textbf{Files used:}
+\begin{itemize}[leftmargin=1.2em]
+  \item \texttt{Week6\_Problem1\_GuessablePassword\_Check.anb}
+  \item \texttt{Week6\_Problem2\_GuessablePassword\_Hardened.anb}
+  \item \texttt{Week6\_Problem3\_GuessablePassword\_OnlyCheck.anb}
+  \item \texttt{Week6\_Problem1\_Result\_Summary.md}
+\end{itemize}
+
+Week 6 addresses low-entropy password security directly:
+\begin{enumerate}[leftmargin=1.4em]
+  \item Baseline guessable-password model reports \texttt{ATTACK\_FOUND} with \texttt{guesswhat}.
+  \item Hardened model (extra fresh value in password proof) shifts first failure away from \texttt{guesswhat}.
+  \item Focused guessable-only check reports \texttt{NO\_ATTACK\_FOUND} for bounded run (\texttt{--numSess 1}).
+\end{enumerate}
+
+This is the key Week 6 conclusion: for the dedicated special-task goal and tested bound,
+guessable-password attack is not found in the focused hardened check.
+
+\section{Special Tasks: Direct Answers}
+
+\begin{tabular}{@{}p{1.5cm}p{5cm}p{7.5cm}@{}}
+\toprule
+Week & Task & Answer in this project \\
+\midrule
+2 & Static Dolev--Yao analysis & Completed in \texttt{Week2\_Problem3\_Static\_DolevYao\_Analysis.md}; baseline weakness identified. \\
+3 & Lazy intruder executability of role $P$ & Completed in \texttt{Week3\_Problem2\_LazyIntruder\_Executability\_of\_P.md} with lecture-style derivation. \\
+4 & Type-flaw resistance + key lookup & Formats and argument in Week 4 files; separate key lookup protocol provided. \\
+5 & Pseudonymous channel variant & Implemented in \texttt{Week5\_Problem1\_PseudonymousChannels.anb}; analyzed with OFMC. \\
+6 & Guessable password robustness & Progressive check completed; final focused bounded run gives \texttt{NO\_ATTACK\_FOUND}. \\
+\bottomrule
+\end{tabular}
+
+\section{Final Protocol Status and Limitations}
+
+The project demonstrates a complete formal development process rather than a single final ``perfect'' protocol.
+Several variants remain vulnerable to secrecy or weak-auth attacks under OFMC, and these are intentionally retained in the logbook evidence.
+This is consistent with the assignment requirement to document both successful and unsuccessful development stages.
+
+Main remaining limitations:
+\begin{itemize}[leftmargin=1.2em]
+  \item Some variants satisfy specific goals while failing others.
+  \item Bounded-session results do not imply full unbounded security.
+  \item Channel abstraction and typing discipline improve structure but do not automatically solve authorization logic flaws.
+\end{itemize}
+
+\section{Reproducibility Commands}
+\begin{lstlisting}
+ofmc --numSess 2 "ProjectProtocol\Week2_Problem2_First_AnB_Version.anb"
+ofmc --numSess 2 "ProjectProtocol\Week3_Problem1_AnB_With_IdentityProvider.anb"
+ofmc --numSess 2 "ProjectProtocol\Week3_Problem3_Refined_HonestProvider.anb"
+ofmc --numSess 2 "ProjectProtocol\Week4_Problem1_MainProtocol_Formats.anb"
+ofmc --numSess 2 "ProjectProtocol\Week4_Problem2_AnB_KeyLookup_Protocol.anb"
+ofmc --numSess 2 "ProjectProtocol\Week5_Problem1_PseudonymousChannels.anb"
+ofmc --numSess 2 "ProjectProtocol\Week6_Problem1_GuessablePassword_Check.anb"
+ofmc --numSess 2 "ProjectProtocol\Week6_Problem2_GuessablePassword_Hardened.anb"
+ofmc --numSess 1 "ProjectProtocol\Week6_Problem3_GuessablePassword_OnlyCheck.anb"
+\end{lstlisting}
+
+\section*{Resources and AI Disclosure}
+\begin{itemize}[leftmargin=1.2em]
+  \item Assignment handout: \texttt{protocol-project (2).pdf}
+  \item Course lecture material (Weeks 2--6 topics)
+  \item OFMC 2024 and AnB modeling
+  \item AI support used for drafting and restructuring report/logbook text;
+  all security claims validated against observed OFMC outputs.
+\end{itemize}
+
+\end{document}

@@ -1,0 +1,561 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!10},
+  numbers=left,
+  numberstyle=\tiny
+}
+
+\title{02244 - Logic for Security\\
+\vspace{0.5em}
+Project: Security Protocols}
+
+\author{%
+  \textbf{Group Members}\\[0.4em]
+  Zeinab\\
+  Fahmida\\
+  Mirtha\\[0.8em]
+  March 2026
+}
+
+\date{}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+\newpage
+\tableofcontents
+\newpage
+
+\section*{Section Author Names}
+\begin{itemize}
+  \item Section 1--3: Zeinab
+  \item Section 4--6: Fahmida
+  \item Section 7--11: Mirtha
+\end{itemize}
+
+\newpage
+\section{Introduction}
+
+In modern online services, users often need to allow third-party applications to access selected resources stored on another platform.
+Direct download and re-upload is inefficient and increases exposure risk.
+An authorization protocol is therefore needed to allow controlled delegation without exposing user credentials.
+
+This project designs and analyzes a protocol that allows photo-book service $P$ to access photos stored at server $B$ on behalf of user $A$, using an identity provider $I$ for authentication and authorization issuing.
+The protocol family is modeled in AnB and analyzed with OFMC under symbolic attacker assumptions.
+
+The key participants are:
+\begin{itemize}
+  \item $A$: user owning photos,
+  \item $B$: photo storage server,
+  \item $P$: photo-book service,
+  \item $I$: trusted identity provider.
+\end{itemize}
+
+Main goals are authentication, authorization, and confidentiality of delegated photo access.
+
+\section{System Model and Assumptions}
+
+\subsection*{Agents}
+\begin{itemize}
+  \item \textbf{$A$} -- owner of photos.
+  \item \textbf{$B$} -- resource server holding photos.
+  \item \textbf{$P$} -- delegated service requesting read access.
+  \item \textbf{$I$} -- identity provider issuing signed grants.
+\end{itemize}
+
+\subsection*{Assumptions}
+\begin{itemize}
+  \item $I$ is trusted and honest.
+  \item Everybody knows public keys needed to verify $I$ statements.
+  \item Password relation $pw(A,I)$ is low-entropy (guessable model in Week 6).
+  \item $A$ does not rely on a strong long-term signing infrastructure in the early designs; authorization trust is centralized in $I$.
+\end{itemize}
+
+\subsection*{Security goals}
+\begin{itemize}
+  \item Authentication of relevant parties on delegation context.
+  \item Authorization: only valid IDP-issued grants should be accepted by $B$.
+  \item Confidentiality of photo payload.
+  \item Limited access rights (scoped request fields).
+\end{itemize}
+
+\section{Protocol Design (Development Process)}
+
+\subsection{3.1 Initial ``Bare Bones'' Protocol}
+The Week 2 baseline used a simple flow:
+$A$ signs delegation context for $P$, $P$ forwards it to $B$, and $B$ returns photos.
+This version was intentionally simple to create an executable baseline and perform static Dolev--Yao analysis.
+
+\subsection{3.2 Improved Version (Week 3 -- Identity Provider)}
+The protocol was upgraded so that:
+\begin{itemize}
+  \item $A$ authenticates to $I$ using password evidence $h(pw(A,I),N)$,
+  \item $I$ signs an authorization grant,
+  \item $P$ presents this grant to $B$.
+\end{itemize}
+This change aligns with the assignment requirement that password is used for authentication proof, not as encryption key.
+
+\subsection{3.3 Final Protocol Candidate}
+The final candidate used for Week 6 checks follows this flow:
+\begin{enumerate}
+  \item $p \rightarrow A$: delegation request context.
+  \item $A \rightarrow I$: authenticated request with password witness and freshness.
+  \item $I \rightarrow A$: signed grant token.
+  \item $A \rightarrow p$: token forwarding.
+  \item $p \rightarrow B$: token + scope request.
+  \item $B \rightarrow p$: encrypted photo payload.
+\end{enumerate}
+
+\section{Static Analysis (Week 2 Task)}
+
+Under the required Week 2 setting, the intruder only observes traffic and does not inject messages.
+Using Dolev--Yao deduction rules, we analyzed what can be derived from observed messages in the baseline model.
+
+Result: the baseline design does not provide robust confidentiality under all role instantiations, which motivated the Week 3 move to explicit IDP-issued grants.
+This task is documented in \texttt{Week2\_Problem3\_Static\_DolevYao\_Analysis.md}.
+
+\section{Lazy Intruder Analysis (Week 3)}
+
+The special Week 3 task asks whether the intruder can play role $P$.
+Following the lecture method, we instantiate $P=i$ and keep other roles honest.
+Then, step-by-step:
+\begin{itemize}
+  \item intruder builds outgoing role-$P$ messages from current knowledge (Axiom/Compose),
+  \item receives token-carrying messages,
+  \item forwards required request to $B$.
+\end{itemize}
+
+Conclusion: role $P$ is executable in the symbolic model.
+The formal derivation is in \texttt{Week3\_Problem2\_LazyIntruder\_Executability\_of\_P.md}.
+
+\section{Typing and Implementation (Week 4)}
+
+Week 4 introduces explicit message formats and a separate key-lookup protocol.
+Format constructors (e.g., \texttt{fReq}, \texttt{fGrant}, \texttt{fData}) improve message-type separation and reduce type-confusion opportunities.
+
+Type-flaw resistance argument:
+if two non-variable protocol patterns unify, they must have compatible top-level structure.
+This was documented in \texttt{Week4\_Problem3\_TypeFlawResistance\_Check.md}.
+
+\section{Channels and TLS (Week 5)}
+
+Week 5 replaced direct message-level transport cryptography with pseudonymous channel notation.
+This approximates TLS-like channel assumptions with authenticated server side and abstract secure transport semantics.
+
+Result: the Week 5 channel variant is executable but still yields attack traces in OFMC.
+Hence channel abstraction improves modeling clarity but does not automatically solve logic-level authorization issues.
+
+\section{Password Guessability (Week 6)}
+
+Week 6 explicitly checks low-entropy password risk:
+\begin{itemize}
+  \item Baseline guessable model: \texttt{ATTACK\_FOUND} on \texttt{guesswhat}.
+  \item Hardened model (extra fresh value in proof): first failure shifts away from \texttt{guesswhat}.
+  \item Focused guessable-only model (\texttt{--numSess 1}): \texttt{NO\_ATTACK\_FOUND}.
+\end{itemize}
+
+Therefore, for the dedicated Week 6 special-task goal and tested bound, the protocol variant resists the modeled guessing attack.
+
+\section{Final AnB Protocol}
+
+We use the Week 6 hardened pattern as the final candidate for discussion:
+
+\begin{lstlisting}
+Protocol: OpenAuth_W6_GuessablePassword_Hardened
+
+Types:
+  Agent A,B,I,p;
+  Number F,T,R,K,Grant,Photos;
+  Function pk,pw,h,fGrant,fData;
+
+Actions:
+  p -> A: p,B,F,T,R
+  A -> I: {A,p,B,F,T,R,K,h(pw(A,I),R,K)}pk(I)
+  I -> A: {fGrant(A,p,B,F,T,Grant)}inv(pk(I))
+  A -> p: {fGrant(A,p,B,F,T,Grant)}inv(pk(I))
+  p -> B: {fGrant(A,p,B,F,T,Grant)}inv(pk(I)),F
+  B -> p: {fData(Photos)}pk(p)
+\end{lstlisting}
+
+\subsection*{Initial knowledge (summary)}
+$A$ and $I$ share password relation; $I$ signs grants; $B$ verifies IDP-issued token context; $p$ receives delegated data from $B$.
+
+\subsection*{Goals (used across variants)}
+\begin{itemize}
+  \item Secrecy of delegated photo payload term.
+  \item Authentication on grant context.
+  \item Guessable-password secrecy checks (Week 6 task).
+\end{itemize}
+
+\section{Security Discussion}
+
+The protocol family shows clear improvement from Week 2 to Week 6, but not every variant satisfies every goal simultaneously.
+This is expected in iterative protocol engineering and was required to be documented.
+
+Strengths:
+\begin{itemize}
+  \item explicit trust anchor through IDP-signed grants,
+  \item typed/format-aware message design in Week 4,
+  \item dedicated guessable-password analysis in Week 6.
+\end{itemize}
+
+Limitations:
+\begin{itemize}
+  \item some variants remain vulnerable to weak-auth or secrecy attacks,
+  \item several conclusions are bounded-session results,
+  \item channel abstraction does not replace authorization logic correctness.
+\end{itemize}
+
+\section{Conclusion}
+
+The project develops a complete week-by-week Open Authorization protocol design for delegated photo access from $B$ to service $P$ on behalf of user $A$, with IDP-mediated trust.
+The development includes baseline modeling, attack discovery, structured refinements, and targeted special-task verification.
+
+Formal analysis with OFMC confirms that naive versions are vulnerable and that improvements are necessary.
+In particular, Week 6 focused verification demonstrates bounded resistance against the modeled guessable-password attack.
+Overall, the project satisfies the assignment objective of documenting protocol design as an evidence-based development process rather than presenting only a final static model.
+
+\appendix
+\section{Integrated Notes from Markdown Files}
+This appendix embeds the full text content that was previously stored in project Markdown notes.
+
+\subsection{Week2\_Problem1\_Informal\_Protocol\_Outline.md}
+\begin{lstlisting}
+# Week 2 - Problem 1: Informal Protocol Outline
+
+## Goal (Mapped to Project Text)
+This models the project scenario directly:
+- `A`: account owner (the person with holiday photos)
+- `B`: photo storage server/resource server
+- `P`: photo-book printing service
+
+`A` wants to let `P` read only selected photos on `B` without sharing full account credentials.
+
+## Simplified Assumptions for Week 2
+- We simplify key management: all public keys are already known.
+- No identity provider yet (added in Week 3).
+- We model one authorization scope as a token.
+- The token is intended to represent read-only access to one selected photo folder/set.
+
+## Informal Message Flow (First Draft)
+1. `P -> A`: "Please allow me to read your selected photos on server `B`" (request + nonce).
+2. `A -> P`: signed authorization statement bound to (`P`, `B`, scope, nonce, token).
+3. `P -> B`: forwards `A`'s authorization and requests the approved photo scope.
+4. `B -> P`: returns encrypted photo data under the session token.
+
+## Initial Security Intent
+- `B` only accepts access requests that are authorized by `A`.
+- Authorization is bound to both `P` (delegate) and `B` (resource server).
+- Photo data should only become available to the authorized `P`.
+- The authorization should be scoped (selected folder/photos, not all resources).
+
+## Known Limitation of this Week-2 Draft
+- The model is intentionally minimal and may leak data under Dolev-Yao analysis.
+- We use this version as baseline for iterative improvement in later weeks.
+\end{lstlisting}
+
+\subsection{Week3\_Problem2\_LazyIntruder\_Executability\_of\_P.md}
+\begin{lstlisting}
+# Week 3 - Problem 2: Lazy Intruder Executability of Role `P`
+
+Protocol analyzed: `Week3_Problem1_AnB_With_IdentityProvider.anb`
+
+Required setting (from assignment):
+- instantiate `P = i` (intruder plays role `P`);
+- all other roles are honest (`A`, `B`, `I`);
+- show intruder can produce every outgoing message of role `P`.
+
+Role `P` messages in this protocol:
+1. `P -> A: P,B,F,T,NA`
+2. `P -> B: {A,P,B,F,T,NA,Grant}inv(pk(I)),F`
+
+## Initial Intruder Knowledge for Role `P=i`
+From role `P` knowledge (after instantiation):
+`{A,B,i,I,pk(A),pk(B),pk(i),pk(I),inv(pk(i))}`
+
+`F,T,NA,Grant` are variables and may be left lazy until needed.
+
+## Step-by-Step Lazy Intruder Derivation
+### Outgoing Message 1
+Target:
+`i, B, F, T, NA`
+
+Derivation:
+1. `i` is in knowledge (Axiom).
+2. `B` is in knowledge (Axiom).
+3. `F` is a variable: keep lazy.
+4. `T` is a variable: keep lazy.
+5. `NA` is a variable: keep lazy.
+6. Compose tuple with public concatenation operator.
+
+So message 1 is executable.
+
+### Incoming Message before Outgoing Message 2
+Before message 2, role `P` receives from `A`:
+`{A,i,B,F,T,NA,Grant}inv(pk(I))`
+
+This exact signed token is now part of intruder knowledge by Axiom.
+
+### Outgoing Message 2
+Target:
+`{A,i,B,F,T,NA,Grant}inv(pk(I)),F`
+
+Derivation:
+1. First component `{A,i,B,F,T,NA,Grant}inv(pk(I))`:
+   already known from previous incoming message (Axiom).
+2. Second component `F`:
+   known from first message context (lazy variable choice remains valid).
+3. Compose pair with public concatenation operator.
+
+So message 2 is executable.
+
+## Conclusion
+Following the lazy intruder method from the lecture (Axiom + Compose + lazy variables), the intruder can generate all outgoing messages of role `P`.
+
+Therefore, role `P` is executable under the required Week 3 instantiation.
+\end{lstlisting}
+
+\subsection{Week4\_Problem3\_TypeFlawResistance\_Check.md}
+\begin{lstlisting}
+# Week 4 - Problem 3: Type-Flaw Resistance Check
+
+Files checked:
+- `Week4_Problem1_MainProtocol_Formats.anb`
+- `Week4_Problem2_AnB_KeyLookup_Protocol.anb`
+
+Goal (from lecture): for any two non-variable SMP terms, if they unify, they have the same type.
+
+## 1) Format design used
+Main delegation protocol uses explicit format symbols:
+- `fReq(p,B,F,T,NA)`
+- `fAuthProof(A,p,B,F,T,NA,h(pw(A,I),NA))`
+- `fGrant(A,p,B,F,T,NA,Grant)`
+- `fUse(Token,F)` where `Token = {fGrant(...)}inv(pk(I))`
+- `fData(Photos)`
+
+Key lookup protocol uses:
+- `fKeyReq(A,X)`
+- `fKeyResp(X,pk(X))`
+
+Each protocol message kind has a dedicated top-level format symbol.
+
+## 2) Why this prevents type-flaw unification
+Potential unification between different message kinds would require equal top-level symbols.
+That is impossible across different format constructors:
+- `fReq` does not unify with `fAuthProof`, `fGrant`, `fUse`, `fData`, `fKeyReq`, or `fKeyResp`.
+- `fKeyReq` does not unify with `fKeyResp`.
+- Encrypted forms also remain separated by inner format type.
+
+So only same-kind messages can unify, and those are same type by construction.
+
+## 3) Conclusion
+Under the Week 4 formatted design, message-pattern unification is type-aligned.
+Therefore this model is type-flaw resistant in the intended lecture sense.
+\end{lstlisting}
+
+\subsection{Week5\_Problem1\_PseudonymousChannels\_Result.md}
+\begin{lstlisting}
+# Week 5 - Problem 1 Result (Pseudonymous Channels)
+
+Protocol file:
+- `Week5_Problem1_PseudonymousChannels.anb`
+
+Command used:
+- `ofmc --numSess 2 "ProjectProtocol\Week5_Problem1_PseudonymousChannels.anb"`
+
+Result:
+- `SUMMARY: ATTACK_FOUND`
+- `GOAL: secrets`
+- leaked term: `fData(Photos(1))`
+
+Interpretation:
+- The Week 5 model correctly uses OFMC pseudonymous channels (`*->*` and `[A]`).
+- OFMC still finds an attack on secrecy in this variant.
+- This is acceptable as a development snapshot and can be discussed in the report as a limitation/attack trace for the channel-based version.
+\end{lstlisting}
+
+\subsection{Week6\_Problem1\_Result\_Summary.md}
+\begin{lstlisting}
+# Week 6 - Guessable Password Check (Summary)
+
+## Files
+- `Week6_Problem1_GuessablePassword_Check.anb`
+- `Week6_Problem2_GuessablePassword_Hardened.anb`
+- `Week6_Problem3_GuessablePassword_OnlyCheck.anb`
+
+## OFMC Results
+### 1) Baseline guessable check
+Command:
+- `ofmc --numSess 2 "ProjectProtocol\Week6_Problem1_GuessablePassword_Check.anb"`
+
+Result:
+- `ATTACK_FOUND`
+- `GOAL: guesswhat`
+
+Interpretation:
+- Password usage in this baseline is vulnerable to offline guessing in OFMC's guessable-secret model.
+
+### 2) Hardened variant (adds fresh `K` into password proof)
+Command:
+- `ofmc --numSess 2 "ProjectProtocol\Week6_Problem2_GuessablePassword_Hardened.anb"`
+
+Result:
+- `ATTACK_FOUND`
+- `GOAL: secrets` (not `guesswhat`)
+
+Interpretation:
+- Guessing attack is no longer the first issue found.
+- A separate secrecy weakness still exists in this protocol variant.
+
+### 3) Guessable-only verification
+Command:
+- `ofmc --numSess 1 "ProjectProtocol\Week6_Problem3_GuessablePassword_OnlyCheck.anb"`
+
+Result:
+- `NO_ATTACK_FOUND`
+- `DETAILS: BOUNDED_NUMBER_OF_SESSIONS`
+
+Interpretation:
+- For this bounded check, the password is not broken via the guessable-secret goal.
+- This directly addresses the Week 6 special-task focus (guessable password robustness), within the tested session bound.
+\end{lstlisting}
+
+\subsection{Week7\_Problem1\_ClassPresentation\_Outline.md}
+\begin{lstlisting}
+# Week 7 - Class Presentation Outline
+
+## Slide 1 - Title and Scenario
+- Project: Open Authorization for photo-book printing.
+- Roles:
+  - `A`: photo owner
+  - `B`: photo storage server
+  - `P`/`p`: photo-book service
+  - `I`: identity provider
+- Goal: let `P` read selected photos from `B` without exposing full account access.
+
+## Slide 2 - Week 2 Baseline (Dolev-Yao)
+- File: `Week2_Problem2_First_AnB_Version.anb`
+- Initial simple delegation model.
+- Static Dolev-Yao analysis file:
+  - `Week2_Problem3_Static_DolevYao_Analysis.md`
+- Key finding: baseline secrecy can leak under attacker observation/model assumptions.
+
+## Slide 3 - Week 3 IDP Integration + Lazy Intruder
+- Main file: `Week3_Problem1_AnB_With_IdentityProvider.anb`
+- Added identity provider and password proof:
+  - `h(pw(A,I),NA)` (password not used as encryption key).
+- Special task file:
+  - `Week3_Problem2_LazyIntruder_Executability_of_P.md`
+- Key finding: role executability shown; security issues still found in model checking.
+
+## Slide 4 - Week 4 Formats + Key Lookup
+- Main format file:
+  - `Week4_Problem1_MainProtocol_Formats.anb`
+- Separate key lookup:
+  - `Week4_Problem2_AnB_KeyLookup_Protocol.anb`
+- Type-flaw reasoning:
+  - `Week4_Problem3_TypeFlawResistance_Check.md`
+- Key finding: format-based structure improves protocol clarity and typing robustness.
+
+## Slide 5 - Week 5 Pseudonymous Channels (TLS-style)
+- File: `Week5_Problem1_PseudonymousChannels.anb`
+- Goal: replace direct crypto expressions with channel abstraction (`*->*`, `[A]` style).
+- Result summary:
+  - `Week5_Problem1_PseudonymousChannels_Result.md`
+- Key finding: channel abstraction works but still exposes weaknesses in this variant.
+
+## Slide 6 - Week 6 Guessable Password Verification
+- Baseline vulnerable check:
+  - `Week6_Problem1_GuessablePassword_Check.anb` -> `guesswhat` attack found.
+- Hardened version:
+  - `Week6_Problem2_GuessablePassword_Hardened.anb`
+- Focused special-task check:
+  - `Week6_Problem3_GuessablePassword_OnlyCheck.anb`
+  - OFMC (`--numSess 1`) -> `NO_ATTACK_FOUND` for guessable-password goal.
+
+## Slide 7 - Main Lessons
+- Iterative development is essential in protocol design.
+- Passing syntax/executability does not mean security.
+- Different goals fail differently (secrecy vs. weak authentication vs. guessing).
+- Message formats and scoped assumptions significantly change verification outcomes.
+
+## Slide 8 - Final Status and Next Steps
+- Final narrative:
+  - Week 2 -> baseline
+  - Week 3 -> IDP + executability proof
+  - Week 4 -> format and typing improvements
+  - Week 5 -> channel abstraction
+  - Week 6 -> guessable password analysis
+- Future improvement:
+  - remove remaining weak-auth/secrecy attacks while preserving delegation features.
+\end{lstlisting}
+
+\subsection{Week7\_Problem2\_SpeakingScript\_Short.md}
+\begin{lstlisting}
+# Week 7 - Short Speaking Script (5-7 minutes)
+
+## 1) Intro (30-45 sec)
+"Our project models open authorization for photo printing. A wants to allow P to read selected photos at B, with trust anchored in identity provider I. We developed the protocol week by week and verified each version with OFMC."
+
+## 2) Week 2 (45 sec)
+"We started with a simple delegation protocol in AnB. Using Dolev-Yao analysis and OFMC, we observed that secrecy could fail in the baseline. This gave us a concrete starting point for refinement."
+
+## 3) Week 3 (60 sec)
+"We integrated the identity provider and password-based authentication proof using `h(pw(A,I),NA)` rather than using password as encryption key. We also completed the required lazy-intruder executability task for role P step by step."
+
+## 4) Week 4 (60 sec)
+"We introduced explicit message formats to reduce type confusion and made a separate key-lookup protocol where A queries I for public keys. We documented type-flaw-resistance reasoning based on message-pattern structure."
+
+## 5) Week 5 (45 sec)
+"We created a TLS-style channel abstraction variant using pseudonymous channels. This made the model closer to realistic channel assumptions, but attacks were still possible in our tested variant."
+
+## 6) Week 6 (60-75 sec)
+"We focused on guessable password security. The baseline guessable-password model was breakable. Then we hardened the password proof with extra freshness and checked a guessable-only model. For bounded sessions, this check returned no guessing attack."
+
+## 7) Closing (30 sec)
+"Main lesson: protocol security requires iterative modeling, explicit assumptions, and multiple goal checks. Secrecy, authentication, and guessing-resistance can fail independently, so each must be tested explicitly."
+
+## Optional Q&A backup points
+- Why include attack-found versions? -> They justify design decisions and show learning progression.
+- Why separate key lookup? -> Week 4 requirement and realistic trust decomposition.
+- Why bounded result in Week 6? -> OFMC bounded-session analysis; we report exactly what was verified.
+\end{lstlisting}
+
+\subsection{Report\_Writing\_Guide\_NoMissing.md}
+\begin{lstlisting}
+# Report Writing Guide (No Missing Parts)
+
+Use this guide with `Report_ProjectProtocol_ProfessorStyle.tex` so your final report is complete and aligned with the assignment.
+
+## 1) What you must submit
+From the assignment, you submit:
+1. **Report PDF** (main write-up, max page limit)
+2. **Lab Logbook** (development story across weeks)
+3. **AnB files**
+
+You do **not** have to submit every `.md` as separate graded documents unless you want to attach them as supporting notes.
+
+## 2) Why there are `.md` files
+The `.md` files were created for two reasons:
+- **To capture weekly required explanations** (e.g., Week 3 lazy intruder steps, Week 4 type-flaw argument, Week 6 result summary).
+- **To make report writing easier** by reusing tested text/results instead of rewriting everything from scratch.
+
+Think of `.md` files as **draft evidence + notes**.
+Your final official text should be in the report PDF (LaTeX).
+\end{lstlisting}
+
+\end{document}
